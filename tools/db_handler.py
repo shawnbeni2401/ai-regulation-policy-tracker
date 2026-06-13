@@ -3,7 +3,19 @@ import os
 import json
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "policies.db")
+IS_VERCEL = os.environ.get("VERCEL") is not None or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") is not None
+ORIG_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "policies.db")
+
+if IS_VERCEL:
+    DB_PATH = "/tmp/policies.db"
+    if not os.path.exists(DB_PATH) and os.path.exists(ORIG_DB_PATH):
+        import shutil
+        try:
+            shutil.copy(ORIG_DB_PATH, DB_PATH)
+        except Exception as e:
+            print(f"Failed to copy DB to /tmp: {e}")
+else:
+    DB_PATH = ORIG_DB_PATH
 
 def init_db():
     """Initializes the database and creates the policies table."""

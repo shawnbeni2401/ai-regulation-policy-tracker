@@ -6,7 +6,12 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from db_handler import upsert_policy, get_policy
 
-NOTIFICATIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".tmp", "notifications")
+IS_VERCEL = os.environ.get("VERCEL") is not None or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") is not None
+
+if IS_VERCEL:
+    NOTIFICATIONS_DIR = "/tmp/notifications"
+else:
+    NOTIFICATIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".tmp", "notifications")
 
 def trigger_alert(policy, old_status, new_status):
     """Generates and records a simulated webhook and email notification payload."""
