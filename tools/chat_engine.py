@@ -168,8 +168,12 @@ def query_gemini_api(api_key, prompt):
         if r.status_code == 200:
             data = r.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception:
-        pass
+        elif r.status_code == 429:
+            return "⚠️ **Gemini API Quota Exceeded:** The free-tier Gemini API key has exceeded its daily limit (20 requests). Please wait a moment or try another key."
+        elif r.status_code == 403:
+            return "⚠️ **Gemini API Authentication Failed:** The configured Gemini API key is invalid or restricted. Please check your credentials in `.env`."
+    except Exception as e:
+        return f"⚠️ **Gemini Connection Error:** Failed to contact Gemini servers ({str(e)})."
     return None
 
 def query_openai_api(api_key, prompt):
@@ -191,8 +195,12 @@ def query_openai_api(api_key, prompt):
         if r.status_code == 200:
             data = r.json()
             return data["choices"][0]["message"]["content"]
-    except Exception:
-        pass
+        elif r.status_code == 429:
+            return "⚠️ **OpenAI API Quota Exceeded:** Your OpenAI API key has exceeded its rate limit or billing quota."
+        elif r.status_code == 401 or r.status_code == 403:
+            return "⚠️ **OpenAI API Authentication Failed:** The configured OpenAI API key is invalid."
+    except Exception as e:
+        return f"⚠️ **OpenAI Connection Error:** Failed to contact OpenAI servers ({str(e)})."
     return None
 
 def answer_question(user_message):
@@ -205,16 +213,23 @@ def answer_question(user_message):
     # 1. Check for API Keys in environment variables
     gemini_key = os.getenv("GEMINI_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
+    api_warning = None
 
     if gemini_key:
         ai_response = query_gemini_api(gemini_key, user_message)
         if ai_response:
-            return markdown_to_html(ai_response)
+            if ai_response.startswith("⚠️"):
+                api_warning = ai_response
+            else:
+                return markdown_to_html(ai_response)
 
-    if openai_key:
+    if openai_key and not api_warning:
         ai_response = query_openai_api(openai_key, user_message)
         if ai_response:
-            return markdown_to_html(ai_response)
+            if ai_response.startswith("⚠️"):
+                api_warning = ai_response
+            else:
+                return markdown_to_html(ai_response)
 
     # 2. Fallback to local SQLite Database search
     search_term = None
@@ -245,6 +260,8 @@ def answer_question(user_message):
 
     if policies:
         response = []
+        if api_warning:
+            response.append(f"{api_warning}\n\n---\n")
         response.append(f"### Found {len(policies)} matching policy document(s) in the database:\n")
         for idx, p in enumerate(policies, 1):
             response.append(f"#### {idx}. {p['policy_name']} ({p['jurisdiction']})")
@@ -271,6 +288,8 @@ def answer_question(user_message):
     web_results = search_web_ddg(user_message)
     if web_results:
         response = []
+        if api_warning:
+            response.append(f"{api_warning}\n\n---\n")
         response.append(f"### 🌐 Web Search Results: \"{user_message}\"\n")
         
         # Combine snippets from the top 3 results to construct a detailed quick answer
